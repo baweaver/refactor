@@ -32,6 +32,7 @@ Gem::Specification.new do |spec|
 
   # Consider removing this later and having a more minimal subset
   spec.add_dependency "rubocop"
+  spec.add_dependency "colorize"
 
   spec.add_development_dependency "guard-rspec"
 end

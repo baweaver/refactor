@@ -261,28 +261,28 @@ module Refactor
 end
 
 # Tests for RuleMacros for later
-context 'When using RuleMacros' do
-  let(:macro_rule) do
-    Class.new(Refactor::Rule) do
-      matches do |macro_node|
-        macro_node in [:block, receiver,
-          [[:arg, arg_name]], [:send, [:lvar, ^arg_name], method_name]
-        ]
-      end
+# context 'When using RuleMacros' do
+#   let(:macro_rule) do
+#     Class.new(Refactor::Rule) do
+#       matches do |macro_node|
+#         macro_node in [:block, receiver,
+#           [[:arg, arg_name]], [:send, [:lvar, ^arg_name], method_name]
+#         ]
+#       end
 
-      replace do |_macro_node, match_data|
-        "#{match_data[:receiver].source}(&:#{match_data[:method_name]})"
-      end
-    end
-  end
+#       replace do |_macro_node, match_data|
+#         "#{match_data[:receiver].source}(&:#{match_data[:method_name]})"
+#       end
+#     end
+#   end
 
-  it 'creates a valid rule' do
-    expect(macro_rule.superclass).to eq(Refactor::Rule)
-  end
+#   it 'creates a valid rule' do
+#     expect(macro_rule.superclass).to eq(Refactor::Rule)
+#   end
 
-  describe ".process" do
-    it "processes a rule inline for convenience" do
-      expect(macro_rule.process(target_source)).to eq(corrected_source)
-    end
-  end
-end
+#   describe ".process" do
+#     it "processes a rule inline for convenience" do
+#       expect(macro_rule.process(target_source)).to eq(corrected_source)
+#     end
+#   end
+# end

@@ -6,6 +6,9 @@ require_relative 'refactor/version'
 # on top of Parser itself
 require 'rubocop'
 
+# Niceties for console output
+require 'colorized_string'
+
 module Refactor
   # Utilities for working with ASTs
   module Util
@@ -43,14 +46,19 @@ module Refactor
       super()
     end
 
-    def self.process(string)
-      Rewriter.new(rules: [self]).process(string)
+    # def process(node)
+    #   super(node).tap do |n_val|
+
+    #   end
+    # end
+
+    # Get all actively loaded rules
+    def self.descendants
+      ObjectSpace.each_object(Class).select { |klass| klass < self }
     end
 
-    def process_regular_node(node)
-      return matches(node) if defined?(matches)
-
-      super()
+    def self.process(string)
+      Rewriter.new(rules: [self]).process(string)
     end
 
     protected def replace(node, new_code)
@@ -64,13 +72,29 @@ module Refactor
       @rules = rules
     end
 
+    # Only processes the string
     def process(string)
+      load_rewriter(string).process
+    end
+
+    # Processes the string and returns a set of nested actions that
+    # were taken against it.
+    def process_with_context(string)
+      rewriter = load_rewriter(string)
+
+      {
+        processed_source: rewriter.process,
+        replacements: rewriter.as_replacements
+      }
+    end
+
+    private def load_rewriter(string)
       # No sense in processing anything if there's nothing to apply it to
       return string if @rules.empty?
 
       source = Util.processed_source_from(string)
-      ast = source.ast
 
+      ast = source.ast
       source_buffer = source.buffer
 
       rewriter = Parser::Source::TreeRewriter.new(source_buffer)
@@ -80,7 +104,87 @@ module Refactor
         ast.each_node { |node| rule.process(node) }
       end
 
-      rewriter.process
+      rewriter
+    end
+  end
+
+  # Runner for applying refactoring rules
+  class Runner
+    DEFAULT_RULE_DIRECTORY = 'refactor_rules'
+    DEFAULT_TARGET_BLOB = '**/*.rb'
+
+    def initialize(
+      rules: [],
+      rule_directory: DEFAULT_RULE_DIRECTORY,
+      target_glob: DEFAULT_TARGET_BLOB,
+      dry_run: false
+    )
+      @rule_directory = rule_directory
+
+      if Dir.exist?(rule_directory)
+        Dir["#{rule_directory}/**/*.rb"].each do |rule|
+          load(rule)
+        end
+      else
+        warn "Rules directory '#{rule_directory}' does not exist. Skipping load."
+      end
+
+      @rules = (rules + Rule.descendants).uniq
+
+      @target_glob = target_glob
+      @target_files = Dir[@target_glob]
+
+      @rewriter = Rewriter.new(rules: @rules)
+      @dry_run = dry_run
+    end
+
+    def run!(dry_run: @dry_run)
+      @target_files.each do |file|
+        content = File.read(file)
+        @rewriter.process_with_context(content) => processed_source:, replacements:
+
+        next if replacements.empty?
+
+        puts "Changes made to #{file}:"
+
+        replacements.each do |range, replacement|
+          puts diff_output(range:, replacement:, file:), ''
+        end
+
+        File.write(file, processed_source) unless dry_run
+      end
+    end
+
+    private def diff_output(range:, replacement:, file:, indent: 2)
+      line_no = formatted_line_no(range)
+      space = ' ' * indent
+      large_space = ' ' * (indent + 2)
+
+      removed_source = range
+        .source
+        .lines
+        .map { ColorizedString["#{large_space}- #{_1}"].colorize(:red) }
+        .join("\n")
+
+      added_source = replacement
+        .lines
+        .map { ColorizedString["#{large_space}+ #{_1}"].colorize(:green) }
+        .join("\n")
+
+      <<~OUTPUT
+        #{space}[#{file}:#{line_no}]
+
+        #{removed_source}
+        #{added_source}
+      OUTPUT
+    end
+
+    private def formatted_line_no(range)
+      if range.single_line?
+        "L#{range.first_line}"
+      else
+        "L#{range.first_line}-#{range.last_line}"
+      end
     end
   end
 end

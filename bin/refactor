@@ -1,0 +1,29 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative File.join('..', 'lib', 'refactor')
+require 'optparse'
+
+@options = {}
+
+OptionParser.new do |opts|
+  opts.on('-rRULES', '--rules=RULES', 'Directory to load rules from') do |rule_directory|
+    @options[:rule_directory] = rule_directory
+  end
+
+  opts.on('-tTARGET', '--target=TARGET', 'Target glob to run rules against') do |target_glob|
+    @options[:target_glob] = target_glob
+  end
+
+  opts.on('-d', '--dry-run', 'Do not change underlying files, output changes') do |dry_run|
+    @options[:dry_run] = dry_run
+  end
+
+  opts.on("-h", "--help", "Prints this help") do
+    puts opts
+    exit
+  end
+end.parse!
+
+runner = Refactor::Runner.new(**@options)
+runner.run!
